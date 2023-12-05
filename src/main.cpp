@@ -1,29 +1,35 @@
 /**
  * * Imports
  */
-#include "WiFi.h"
 #include <Arduino.h>
+#include <WiFi.h>
 
 // WiFi name
 const char *ssid = "";
 // WiFi password
 const char *password = "";
 
+// Pins
+#define FLASH_PIN 4
+
 // Declare functions
 void connectWiFi();
 
 void setup() {
-  pinMode(BUILTIN_LED, OUTPUT);
-  Serial.begin(921600);
-
-  connectWiFi();
+  Serial.begin(115200);
+  pinMode(FLASH_PIN, OUTPUT);
 }
 
 void loop() {
-  digitalWrite(BUILTIN_LED, HIGH);
-  delay(1000);
-  digitalWrite(BUILTIN_LED, LOW);
-  delay(1000);
+  if (WiFi.status() != WL_CONNECTED) {
+    connectWiFi();
+  } else if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("serial monitor is working");
+    digitalWrite(FLASH_PIN, HIGH);
+    delay(1000);
+    digitalWrite(FLASH_PIN, LOW);
+    delay(1000);
+  }
 }
 
 void connectWiFi() {
