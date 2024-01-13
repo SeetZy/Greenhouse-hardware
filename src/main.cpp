@@ -3,6 +3,7 @@
  */
 #include <Arduino.h>
 #include <DallasTemperature.h>
+#include <HTTPClient.h>
 #include <LiquidCrystal_I2C.h>
 #include <OneWire.h>
 #include <WiFi.h>
@@ -15,9 +16,18 @@
 const char *ssid = "IKEA-FREE";
 const char *password = "pdzl7885";
 
+// Post method URL
+const char *post_url = "";
+
+struct {
+  float tempC = 0;
+  int soilHum = 0;
+} monVar;
+
 class EnvironmentMonitor {
 public:
   EnvironmentMonitor()
+      // SCL 22; SDA 21
       : lcd(0x27, 16, 2), oneWire(TEMP_PIN), DS18B20(&oneWire) {}
 
   void begin() {
@@ -25,25 +35,8 @@ public:
     DS18B20.begin();
     lcd.init();
     lcd.clear();
-    lcd.backlight();
     pinMode(BUILTIN_LED, OUTPUT);
   }
-
-  void loop() {
-    if (WiFi.status() != WL_CONNECTED) {
-      connectWiFi();
-    } else {
-      digitalWrite(BUILTIN_LED, HIGH);
-      delay(1000);
-      digitalWrite(BUILTIN_LED, LOW);
-      delay(1000);
-    }
-  }
-
-private:
-  LiquidCrystal_I2C lcd;
-  OneWire oneWire;
-  DallasTemperature DS18B20;
 
   void connectWiFi() {
     WiFi.begin(ssid, password);
@@ -58,55 +51,69 @@ private:
   }
 
   void connectDb() {}
+
+private:
+  LiquidCrystal_I2C lcd;
+  OneWire oneWire;
+  DallasTemperature DS18B20;
+  HTTPClient http;
+  WiFiClient client;
 };
 
 class SensorMonitor {
 public:
-  SensorMonitor(int soilThreshold)
-      : soilThreshold(soilThreshold), lcd(0x27, 16, 2), oneWire(TEMP_PIN),
-        DS18B20(&oneWire) {}
+  SensorMonitor() : lcd(0x27, 16, 2), oneWire(TEMP_PIN), DS18B20(&oneWire) {}
 
   void checkTemp() {
     DS18B20.requestTemperatures();
-    float tempC = DS18B20.getTempCByIndex(0);
+    monVar.tempC = DS18B20.getTempCByIndex(0);
 
     Serial.print("Temperature: ");
-    Serial.print(tempC);
+    Serial.print(monVar.tempC);
     Serial.println("°C");
   }
 
   void checkSoilLevels() {
-    int value = analogRead(SOIL_PIN);
+    monVar.soilHum = analogRead(SOIL_PIN);
 
-    if (value < soilThreshold) {
+    if (monVar.soilHum < 1000) {
       Serial.print("Soil is Dry: ");
-    } else if (value > soilThreshold) {
+    } else if (monVar.soilHum > 1000) {
       Serial.print("Soil is Wet: ");
     }
 
-    Serial.println(value);
+    Serial.println(monVar.soilHum);
   }
 
   void showLcd() {
-    lcd.setCursor(2, 0);
-    lcd.print("Hello, world");
+    lcd.backlight();
+    lcd.setCursor(1, 0);
+    lcd.print("Temp: " + String(monVar.tempC) + (char)223 + "C");
+    lcd.setCursor(2, 1);
+    lcd.print("  Hum: " + String(monVar.soilHum) + "%");
   }
 
 private:
-  int soilThreshold;
   LiquidCrystal_I2C lcd;
   OneWire oneWire;
   DallasTemperature DS18B20;
 };
 
 EnvironmentMonitor environmentMonitor;
-SensorMonitor sensorMonitor(1000);
+SensorMonitor sensorMonitor;
 
 void setup() { environmentMonitor.begin(); }
 
 void loop() {
-  environmentMonitor.loop();
-  sensorMonitor.checkTemp();
-  sensorMonitor.checkSoilLevels();
-  sensorMonitor.showLcd();
+  if (WiFi.status() != WL_CONNECTED) {
+    environmentMonitor.connectWiFi();
+  } else {
+    digitalWrite(BUILTIN_LED, HIGH);
+    delay(1000);
+    sensorMonitor.checkTemp();
+    sensorMonitor.checkSoilLevels();
+    sensorMonitor.showLcd();
+    digitalWrite(BUILTIN_LED, LOW);
+    delay(1000);
+  }
 }
