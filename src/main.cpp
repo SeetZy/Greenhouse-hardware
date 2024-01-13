@@ -2,148 +2,175 @@
  * * Imports
  */
 #include <Arduino.h>
+#include <EEPROM.h>
 #include <HTTPClient.h>
+#include <SD_MMC.h>
 #include <WiFi.h>
 #include <esp_camera.h>
-
-#define CAMERA_MODEL_AI_THINKER
-
-#include <camera_pins.h>
-
-// WiFi name
-const char *ssid = "IKEA-FREE";
-// WiFi password
-const char *password = "pdzl7885";
 
 // Pins
 #define FLASH_PIN 4
 
-// Declare functions
-void connectWiFi();
-void db();
-void startCameraServer();
-void setupLedFlash(int pin);
+// Camera Variables
+#define EEPROM_SIZE_IN_BYTES 1
+#define MICROSECONDS_IN_SECONDS 1000000
+#define SLEEP_TIME_IN_SECONDS 60
+
+class CameraController {
+public:
+  CameraController() : photoNumber(0) {}
+
+  void initialize() {
+    Serial.begin(115200);
+    EEPROM.begin(EEPROM_SIZE_IN_BYTES);
+    loadPhotoNumberFromEEPROM();
+
+    // Initialize SD card
+    initializeSDCard();
+
+    // Take and save photos
+    takeAndSavePhotos();
+
+    // Set sleep time
+    setSleepTime();
+
+    // Send the ESP32 into deep sleep
+    esp_deep_sleep_start();
+  }
+
+private:
+  int photoNumber;
+
+  void initializeSDCard() {
+    Serial.println("Initializing SD card");
+    if (!SD_MMC.begin()) {
+      Serial.println("Failed to initialize SD card!");
+      return;
+    }
+
+    uint8_t cardType = SD_MMC.cardType();
+    if (cardType == CARD_NONE) {
+      Serial.println("SD card slot appears to be empty!");
+      return;
+    }
+
+    // If the SD card is empty then reset the EEPROM file counter back to 0
+    resetPhotoNumbering();
+  }
+
+  void loadPhotoNumberFromEEPROM() {
+    photoNumber = EEPROM.read(0);
+    Serial.println("Next photo number loaded from preferences: " +
+                   String(photoNumber));
+  }
+
+  void resetPhotoNumbering() {
+    fs::FS &fs = SD_MMC;
+    File sdCardRoot = fs.open("/");
+
+    if (!sdCardRoot) {
+      Serial.println("Failed to open SD card root folder!");
+      return;
+    }
+
+    if (!sdCardRoot.isDirectory()) {
+      Serial.println("SD card root folder cannot be read!");
+      return;
+    }
+
+    File file = sdCardRoot.openNextFile();
+    if (file.available() > 0) {
+      Serial.println("SD card is not empty");
+    } else {
+      Serial.println("SD card is empty");
+      photoNumber = 0;
+      EEPROM.write(0, photoNumber);
+      EEPROM.commit();
+      Serial.println("Next photo number reset to 0");
+    }
+  }
+
+  void takeAndSavePhotos() {
+    // Take first picture (not saved, usually has a green tint)
+    takePhoto(false);
+
+    delay(1000);
+
+    // Take second picture and save to SD card
+    takePhoto(true);
+  }
+
+  void takePhoto(bool savePhoto) {
+    camera_fb_t *fb = NULL;
+    fb = esp_camera_fb_get();
+    if (!fb) {
+      Serial.println("Camera capture failed");
+      return;
+    }
+
+    if (savePhoto) {
+      String photoFileName = "/photo_" + String(photoNumber) + ".jpg";
+      fs::FS &fs = SD_MMC;
+      File file = fs.open(photoFileName.c_str(), FILE_WRITE);
+      if (file) {
+        file.write(fb->buf, fb->len);
+        Serial.println("Saved file to path: " + String(photoFileName));
+        ++photoNumber;
+        if (photoNumber > 255) {
+          photoNumber = 0;
+        }
+
+        EEPROM.write(0, photoNumber);
+        EEPROM.commit();
+        Serial.println("Next photo number saved to preferences: " +
+                       String(photoNumber));
+        file.close();
+      } else {
+        Serial.println("Failed to open file in writing mode");
+      }
+    }
+
+    esp_camera_fb_return(fb);
+  }
+
+  void setSleepTime() {
+    unsigned long sleepTime = MICROSECONDS_IN_SECONDS * SLEEP_TIME_IN_SECONDS;
+    Serial.println("Going to sleep for " + String(SLEEP_TIME_IN_SECONDS) +
+                   " seconds...");
+    Serial.flush();
+
+    esp_sleep_enable_timer_wakeup(sleepTime);
+  }
+};
+
+class WiFiController {
+public:
+  WiFiController(const char *ssid, const char *password)
+      : ssid(ssid), password(password) {}
+
+  void connect() {
+    WiFi.begin(ssid, password);
+
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(500);
+      Serial.println("Connecting to the WiFi...");
+    }
+
+    Serial.print("Connected to WiFi\nIP address: ");
+    Serial.println(WiFi.localIP());
+  }
+
+private:
+  const char *ssid;
+  const char *password;
+};
 
 void setup() {
-  Serial.begin(115200);
-  Serial.setDebugOutput(true);
-  Serial.println();
-
-  camera_config_t config;
-  config.ledc_channel = LEDC_CHANNEL_0;
-  config.ledc_timer = LEDC_TIMER_0;
-  config.pin_d0 = Y2_GPIO_NUM;
-  config.pin_d1 = Y3_GPIO_NUM;
-  config.pin_d2 = Y4_GPIO_NUM;
-  config.pin_d3 = Y5_GPIO_NUM;
-  config.pin_d4 = Y6_GPIO_NUM;
-  config.pin_d5 = Y7_GPIO_NUM;
-  config.pin_d6 = Y8_GPIO_NUM;
-  config.pin_d7 = Y9_GPIO_NUM;
-  config.pin_xclk = XCLK_GPIO_NUM;
-  config.pin_pclk = PCLK_GPIO_NUM;
-  config.pin_vsync = VSYNC_GPIO_NUM;
-  config.pin_href = HREF_GPIO_NUM;
-  config.pin_sccb_sda = SIOD_GPIO_NUM;
-  config.pin_sccb_scl = SIOC_GPIO_NUM;
-  config.pin_pwdn = PWDN_GPIO_NUM;
-  config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 20000000;
-  config.frame_size = FRAMESIZE_UXGA;
-  config.pixel_format = PIXFORMAT_JPEG; // for streaming
-  // config.pixel_format = PIXFORMAT_RGB565; // for face detection/recognition
-  config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
-  config.fb_location = CAMERA_FB_IN_PSRAM;
-  config.jpeg_quality = 12;
-  config.fb_count = 1;
-
-  // if PSRAM IC present, init with UXGA resolution and higher JPEG quality
-  //                      for larger pre-allocated frame buffer.
-  if (config.pixel_format == PIXFORMAT_JPEG) {
-    if (psramFound()) {
-      config.jpeg_quality = 10;
-      config.fb_count = 2;
-      config.grab_mode = CAMERA_GRAB_LATEST;
-    } else {
-      // Limit the frame size when PSRAM is not available
-      config.frame_size = FRAMESIZE_SVGA;
-      config.fb_location = CAMERA_FB_IN_DRAM;
-    }
-  } else {
-    // Best option for face detection/recognition
-    config.frame_size = FRAMESIZE_240X240;
-#if CONFIG_IDF_TARGET_ESP32S3
-    config.fb_count = 2;
-#endif
-  }
-
-#if defined(CAMERA_MODEL_ESP_EYE)
-  pinMode(13, INPUT_PULLUP);
-  pinMode(14, INPUT_PULLUP);
-#endif
-
-  // camera init
-  esp_err_t err = esp_camera_init(&config);
-  if (err != ESP_OK) {
-    Serial.printf("Camera init failed with error 0x%x", err);
-    return;
-  }
-
-  sensor_t *s = esp_camera_sensor_get();
-  // initial sensors are flipped vertically and colors are a bit saturated
-  if (s->id.PID == OV3660_PID) {
-    s->set_vflip(s, 1);       // flip it back
-    s->set_brightness(s, 1);  // up the brightness just a bit
-    s->set_saturation(s, -2); // lower the saturation
-  }
-  // drop down frame size for higher initial frame rate
-  if (config.pixel_format == PIXFORMAT_JPEG) {
-    s->set_framesize(s, FRAMESIZE_QVGA);
-  }
-
-#if defined(CAMERA_MODEL_M5STACK_WIDE) || defined(CAMERA_MODEL_M5STACK_ESP32CAM)
-  s->set_vflip(s, 1);
-  s->set_hmirror(s, 1);
-#endif
-
-#if defined(CAMERA_MODEL_ESP32S3_EYE)
-  s->set_vflip(s, 1);
-#endif
-
-// Setup LED FLash if LED pin is defined in camera_pins.h
-#if defined(LED_GPIO_NUM)
-  setupLedFlash(LED_GPIO_NUM);
-#endif
-
-  connectWiFi();
-
-  startCameraServer();
-
-  Serial.print("Camera Ready! Use 'http://");
-  Serial.print(WiFi.localIP());
-  Serial.println("' to connect");
+  CameraController cameraController;
+  cameraController.initialize();
 }
 
 void loop() {
-  // if (WiFi.status() != WL_CONNECTED) {
-  //   connectWiFi();
-  // } else if (WiFi.status() == WL_CONNECTED) {
-  //   Serial.println("serial monitor is working");
-  //   digitalWrite(FLASH_PIN, HIGH);
-  //   delay(1000);
-  //   digitalWrite(FLASH_PIN, LOW);
-  //   delay(1000);
-  // }
-}
-
-void connectWiFi() {
-  WiFi.begin(ssid, password);
-
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.println("Connecting to the WiFi...");
-  }
-
-  Serial.print("Connected to WiFi\nIP address: ");
-  Serial.println(WiFi.localIP());
+  WiFiController wifiController("IKEA-FREE", "pdzl7885");
+  wifiController.connect();
 }
