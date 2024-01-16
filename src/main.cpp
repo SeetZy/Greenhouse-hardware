@@ -2,6 +2,7 @@
  * * Library imports
  */
 #include <Arduino.h>
+#include <ArduinoJson.h>
 #include <DallasTemperature.h>
 #include <HTTPClient.h>
 #include <LiquidCrystal_I2C.h>
@@ -17,11 +18,12 @@ const char *ssid = "IKEA-FREE";
 const char *password = "pdzl7885";
 
 // Post method URL
-const char *post_url = "";
+const char *post_url = "http://localhost:3000";
 
 struct {
   float tempC = 0;
   int soilHum = 0;
+  int airHum = 0;
 } monVar;
 
 class EnvironmentMonitor {
@@ -38,6 +40,7 @@ public:
     pinMode(BUILTIN_LED, OUTPUT);
   }
 
+  // Connects to the WiFi
   void connectWiFi() {
     WiFi.begin(ssid, password);
 
@@ -50,7 +53,34 @@ public:
     Serial.println(WiFi.localIP());
   }
 
-  void connectDb() {}
+  // Sends data to cloud server
+  void sendData() {
+    StaticJsonDocument<200> jsonDocument;
+
+    jsonDocument["tempC"] = monVar.tempC;
+    jsonDocument["soilHum"] = monVar.soilHum;
+
+    String jsonData;
+    serializeJson(jsonDocument, jsonData);
+
+    http.begin(post_url);
+
+    http.addHeader("Content-Type", "application/json");
+
+    int httpResponseCode = http.POST(jsonData);
+
+    if (httpResponseCode > 0) {
+      Serial.print("HTTP Response code: ");
+      Serial.println(httpResponseCode);
+      String response = http.getString();
+      Serial.println(response);
+    } else {
+      Serial.print("Error in HTTP request: ");
+      Serial.println(httpResponseCode);
+    }
+
+    http.end();
+  }
 
 private:
   LiquidCrystal_I2C lcd;
@@ -113,6 +143,7 @@ void loop() {
     sensorMonitor.checkTemp();
     sensorMonitor.checkSoilLevels();
     sensorMonitor.showLcd();
+    environmentMonitor.sendData();
     digitalWrite(BUILTIN_LED, LOW);
     delay(1000);
   }
