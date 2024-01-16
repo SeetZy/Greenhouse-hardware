@@ -4,7 +4,8 @@
   "description": "",
   "main": "main.ts",
   "scripts": {
-    "start": "npm i & ts-node main.ts",
+    "start": "node build/main.js",
+    "postinstall": "tsc",
     "dev": "npm i & nodemon main"
   },
   "repository": {
