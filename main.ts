@@ -22,7 +22,7 @@ connectDb()
 const app = express()
 
 // Define the port
-const port = process.env.PORT || 3000
+const port = process.env.PORT || 8080
 
 // This code enables Cross-Origin Resource Sharing (CORS)
 app.use(cors())
