@@ -4,7 +4,7 @@
   "description": "",
   "main": "main.ts",
   "scripts": {
-    "start": "npm i & node main",
+    "start": "npm i & ts-node main.ts",
     "dev": "npm i & nodemon main"
   },
   "repository": {
