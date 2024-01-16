@@ -19,3 +19,6 @@ router.get('/', (req, res) => {
 
 // Route to add greenhouse info
 router.post('/post-greenhouse-info', greenhouseDbFunc.addData)
+
+// Route to get greenhouse info
+router.get('/get-greenhouse-info', greenhouseDbFunc.getData)

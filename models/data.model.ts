@@ -11,19 +11,18 @@ const Schema = mongoose.Schema
 
 export interface GreenhouseDocument extends Document {
   _id?: any
-  soilHum?: string
-  tempC?: string
-  comparePassword: (password: string) => Promise<boolean>
+  soilHum?: number
+  tempC?: number
 }
 
 // Defines the user schema
 const greenhouseSchema = new Schema({
-  gameName: {
-    type: String,
+  soilHum: {
+    type: Number,
     require: true,
   },
-  img: {
-    type: String,
+  tempC: {
+    type: Number,
     require: true,
   },
 })

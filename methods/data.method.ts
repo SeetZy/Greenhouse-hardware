@@ -7,11 +7,11 @@
 import { Request, Response } from 'express'
 
 // Data model import
-import { GreenhouseModel, GreenhouseDocument } from '../models/data.model'
+import { GreenhouseModel } from '../models/data.model'
 
 class GreenhouseService {
   // Signs up a new greenhouse in the database
-  static async createGreenhouseInfo(soilHum: string, tempC: string) {
+  static async createGreenhouseInfo(soilHum: number, tempC: number) {
     try {
       // Defines a new greenhouse model for the requested registration
       const createNewGreenhouse = new GreenhouseModel({
@@ -20,9 +20,25 @@ class GreenhouseService {
       })
 
       // Saves the new greenhouse to the database
-      return await createNewGreenhouse.save()
+      const savedData = await createNewGreenhouse.save()
+      console.log('Data saved successfully:', savedData)
+      return savedData
     } catch (error) {
+      console.error('Failed to save data:', error)
       throw new Error(`Failed to register: ${(error as Error).message}`)
+    }
+  }
+
+  static async getAllData(req: Request, res: Response) {
+    try {
+      const greenhouseData = await GreenhouseModel.find()
+      console.log('All data:', greenhouseData)
+      return res.json(greenhouseData)
+    } catch (error) {
+      console.error(error)
+      return res
+        .status(500)
+        .json({ status: false, error: 'Failed to fetch the data' })
     }
   }
 }
@@ -36,32 +52,31 @@ export const greenhouseDbFunc = {
 
       // Checks if all the fields are defined and not empty
       if (!soilHum || !tempC) {
-        res.status(400).json({
+        return res.status(400).json({
           status: false,
           error: 'Please fill all the fields',
         })
       } else {
         await GreenhouseService.createGreenhouseInfo(soilHum, tempC)
-        res.json({ status: true, success: 'Data registered' })
+        return res.json({ status: true, success: 'Data registered' })
       }
     } catch (error) {
-      console.error((error as Error).message)
-      res
+      console.error(error)
+      return res
         .status(500)
         .json({ status: false, error: 'Failed to register the data' })
     }
   },
 
-  // ! WIP
   // Data fetching method
   getData: async (req: Request, res: Response) => {
     try {
-      const greenhouseData = await GreenhouseModel.find()
-
-      return greenhouseData
+      await GreenhouseService.getAllData(req, res)
     } catch (error) {
-      console.error((error as Error).message)
-      res.status(500).json({ status: false, error: 'Failed to fetch the data' })
+      console.error(error)
+      return res
+        .status(500)
+        .json({ status: false, error: 'Failed to fetch the data' })
     }
   },
 }
