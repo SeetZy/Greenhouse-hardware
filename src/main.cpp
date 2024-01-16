@@ -18,7 +18,7 @@ const char *ssid = "IKEA-FREE";
 const char *password = "pdzl7885";
 
 // Post method URL
-const char *post_url = "http://localhost:3000";
+const char *post_url = "http://localhost:3000/post-greenhouse-info";
 
 struct {
   float tempC = 0;
