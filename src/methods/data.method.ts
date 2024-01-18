@@ -18,7 +18,7 @@ class GreenhouseService {
         soilHum,
         tempC,
         photo: {
-          data: photo.buffer,
+          data: Buffer.from(photo.buffer),
           contentType: photo.mimetype,
         },
       })
