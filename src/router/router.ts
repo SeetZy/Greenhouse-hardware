@@ -5,20 +5,23 @@
  */
 // ? https://www.npmjs.com/package/express
 import express from 'express'
-
-// Defining a router
-export const router = express.Router()
-
-// Gets all the methods
+// ? https://www.npmjs.com/package/multer
+import multer from 'multer'
 import { greenhouseDbFunc } from '../methods/data.method'
 
-// Default Route
+export const router = express.Router()
+
+// Initialize multer
+const upload = multer()
+
 router.get('/', (req, res) => {
   res.send('This is not meant to be viewed')
 })
 
-// Route to add greenhouse info
-router.post('/post-greenhouse-info', greenhouseDbFunc.addData)
-
-// Route to get greenhouse info
+router.post(
+  '/post-greenhouse-photo',
+  upload.single('image'),
+  greenhouseDbFunc.addPhoto
+)
 router.get('/get-greenhouse-info', greenhouseDbFunc.getData)
+router.get('/get-greenhouse-photo', greenhouseDbFunc.getPhotos)

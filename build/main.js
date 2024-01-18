@@ -22,7 +22,7 @@ const router_1 = require("./router/router");
 // Define a new app
 const app = (0, express_1.default)();
 // Define the port
-const port = process.env.PORT || 8080;
+const port = process.env.PORT || 5000;
 // This code enables Cross-Origin Resource Sharing (CORS)
 app.use((0, cors_1.default)());
 // This code sets up body-parser middleware to handle JSON and URL encoded form data

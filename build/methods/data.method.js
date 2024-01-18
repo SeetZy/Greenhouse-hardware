@@ -9,27 +9,22 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.greenhouseDbFunc = void 0;
-const multer_1 = __importDefault(require("multer"));
+// Data model import
 const data_model_1 = require("../models/data.model");
-const storage = multer_1.default.memoryStorage(); // Store files in memory
-const upload = (0, multer_1.default)({ storage: storage });
 class GreenhouseService {
-    static createGreenhouseInfo(soilHum, tempC, photo) {
+    // Signs up a new greenhouse in the database
+    static createGreenhouseInfo(soilHum, tempC, image) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
+                // Defines a new greenhouse model for the requested registration
                 const createNewGreenhouse = new data_model_1.GreenhouseModel({
                     soilHum,
                     tempC,
-                    photo: {
-                        data: photo.buffer,
-                        contentType: photo.mimetype,
-                    },
+                    image, // Assigns the provided image data
                 });
+                // Saves the new greenhouse to the database
                 const savedData = yield createNewGreenhouse.save();
                 console.log('Data saved successfully:', savedData);
                 return savedData;
@@ -57,39 +52,32 @@ class GreenhouseService {
     }
 }
 exports.greenhouseDbFunc = {
-    addData: [
-        upload.single('photo'), // Middleware for handling photo upload
-        (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-            try {
-                const { soilHum, tempC } = req.body;
-                if (!soilHum || !tempC) {
-                    return res.status(400).json({
-                        status: false,
-                        error: 'Please fill all the fields',
-                    });
-                }
-                else {
-                    // Check if req.file is defined before passing it
-                    if (req.file) {
-                        yield GreenhouseService.createGreenhouseInfo(soilHum, tempC, req.file);
-                        return res.json({ status: true, success: 'Data registered' });
-                    }
-                    else {
-                        return res.status(400).json({
-                            status: false,
-                            error: 'Please upload a photo',
-                        });
-                    }
-                }
+    // Data registration method
+    addData: (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+        try {
+            // Gets the user credentials from the request body
+            const { soilHum, tempC } = req.body;
+            // Checks if all the fields are defined and not empty
+            if (!soilHum || !tempC || !req.file) {
+                return res.status(400).json({
+                    status: false,
+                    error: 'Please fill all the fields and provide an image',
+                });
             }
-            catch (error) {
-                console.error(error);
-                return res
-                    .status(500)
-                    .json({ status: false, error: 'Failed to register the data' });
+            else {
+                const image = req.file.buffer;
+                yield GreenhouseService.createGreenhouseInfo(soilHum, tempC, image);
+                return res.json({ status: true, success: 'Data registered' });
             }
-        }),
-    ],
+        }
+        catch (error) {
+            console.error(error);
+            return res
+                .status(500)
+                .json({ status: false, error: 'Failed to register the data' });
+        }
+    }),
+    // Data fetching method
     getData: (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         try {
             yield GreenhouseService.getAllData(req, res);
