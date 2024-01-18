@@ -16,6 +16,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.greenhouseDbFunc = void 0;
 const multer_1 = __importDefault(require("multer"));
 const data_model_1 = require("../models/data.model");
+const storage = multer_1.default.memoryStorage(); // Store files in memory
+const upload = (0, multer_1.default)({ storage: storage });
 class GreenhouseService {
     static createGreenhouseInfo(soilHum, tempC, photo) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -54,8 +56,6 @@ class GreenhouseService {
         });
     }
 }
-const storage = multer_1.default.memoryStorage(); // Store files in memory
-const upload = (0, multer_1.default)({ storage: storage });
 exports.greenhouseDbFunc = {
     addData: [
         upload.single('photo'), // Middleware for handling photo upload

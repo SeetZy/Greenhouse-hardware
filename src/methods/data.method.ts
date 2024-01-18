@@ -4,6 +4,9 @@ import { Request, Response } from 'express'
 import multer from 'multer'
 import { GreenhouseModel } from '../models/data.model'
 
+const storage = multer.memoryStorage() // Store files in memory
+const upload = multer({ storage: storage })
+
 class GreenhouseService {
   static async createGreenhouseInfo(
     soilHum: number,
@@ -42,9 +45,6 @@ class GreenhouseService {
     }
   }
 }
-
-const storage = multer.memoryStorage() // Store files in memory
-const upload = multer({ storage: storage })
 
 export const greenhouseDbFunc = {
   addData: [
