@@ -3,6 +3,7 @@
  */
 #include <Arduino.h>
 #include <FS.h>
+#include <HTTPClient.h>
 #include <SD_MMC.h>
 #include <WiFi.h>
 #include <driver/rtc_io.h>
@@ -102,6 +103,48 @@ private:
     return filename;
   }
 
+  void uploadPhotoToServer(fs::FS &fs, String filename) {
+    File file = fs.open(filename.c_str(), FILE_READ);
+    if (!file) {
+      Serial.printf("Failed to open file in reading mode");
+      return;
+    }
+
+    // Read file content into a buffer
+    size_t fileSize = file.size();
+    uint8_t *fileBuffer = (uint8_t *)malloc(fileSize);
+    if (!fileBuffer) {
+      Serial.println("Failed to allocate memory for file buffer");
+      file.close();
+      return;
+    }
+    file.read(fileBuffer, fileSize);
+    file.close();
+
+    // Set up the HTTP client
+    HTTPClient http;
+    http.begin(
+        "http://your_server/upload"); // Replace with your server endpoint
+
+    // Specify content type
+    http.addHeader("Content-Type", "image/jpeg");
+
+    // Send the POST request with the file data
+    int httpResponseCode = http.POST(fileBuffer, fileSize);
+
+    // Check for success
+    if (httpResponseCode > 0) {
+      Serial.printf("HTTP Response code: %d\n", httpResponseCode);
+    } else {
+      Serial.printf("HTTP Request failed: %s\n",
+                    http.errorToString(httpResponseCode).c_str());
+    }
+
+    // Clean up
+    http.end();
+    free(fileBuffer);
+  }
+
 public:
   CameraSystem(const char *ssid, const char *password, String myTimezone,
                int PWDN_GPIO_NUM, int RESET_GPIO_NUM, int XCLK_GPIO_NUM,
@@ -167,8 +210,8 @@ public:
     Serial.println(timezone);
   }
 
-  // Caotures and saves the photo to the SD card
-  void captureAndSavePhoto() {
+  // Captures and uploads the photo to the server
+  void captureAndUploadPhoto() {
     camera_fb_t *fb = esp_camera_fb_get();
 
     if (!fb) {
@@ -187,8 +230,10 @@ public:
     } else {
       file.write(fb->buf, fb->len);
       Serial.printf("Saved: %s\n", path.c_str());
+      file.close();
+      uploadPhotoToServer(fs, path); // Upload the photo to the server
     }
-    file.close();
+
     esp_camera_fb_return(fb);
   }
 };
@@ -203,7 +248,7 @@ void loop() {
   if (WiFi.status() != WL_CONNECTED) {
     cameraSystem.initWiFi();
   } else {
-    cameraSystem.captureAndSavePhoto();
+    cameraSystem.captureAndUploadPhoto();
     delay(10000);
   }
 }
