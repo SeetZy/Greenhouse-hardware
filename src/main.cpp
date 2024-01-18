@@ -1,12 +1,15 @@
-#include "FS.h"
-#include "SD_MMC.h"
-#include "driver/rtc_io.h"
-#include "esp_camera.h"
-#include "soc/rtc_cntl_reg.h"
-#include "soc/soc.h"
-#include "time.h"
+/**
+ * * Library imports
+ */
 #include <Arduino.h>
+#include <FS.h>
+#include <SD_MMC.h>
 #include <WiFi.h>
+#include <driver/rtc_io.h>
+#include <esp_camera.h>
+#include <soc/rtc_cntl_reg.h>
+#include <soc/soc.h>
+#include <time.h>
 
 class CameraSystem {
 private:
@@ -51,14 +54,13 @@ private:
     config.pin_pwdn = PWDN_GPIO_NUM;
     config.pin_reset = RESET_GPIO_NUM;
     config.xclk_freq_hz = 20000000;
-    config.pixel_format = PIXFORMAT_JPEG; // YUV422,GRAYSCALE,RGB565,JPEG
+    config.pixel_format = PIXFORMAT_JPEG;
     config.grab_mode = CAMERA_GRAB_LATEST;
 
-    // Select lower framesize if the camera doesn't support PSRAM
     if (psramFound()) {
-      config.frame_size =
-          FRAMESIZE_UXGA;       // FRAMESIZE_ + QVGA|CIF|VGA|SVGA|XGA|SXGA|UXGA
-      config.jpeg_quality = 10; // 0-63 lower number means higher quality
+      config.frame_size = FRAMESIZE_UXGA;
+      // 0-63 lower number means higher quality
+      config.jpeg_quality = 10;
       config.fb_count = 1;
     } else {
       config.frame_size = FRAMESIZE_SVGA;
@@ -72,33 +74,6 @@ private:
       Serial.printf("Camera init failed with error 0x%x", err);
       return;
     }
-  }
-
-  void initWiFi() {
-    WiFi.begin(ssid, password);
-    Serial.println("Connecting Wifi");
-    while (WiFi.status() != WL_CONNECTED) {
-      Serial.print(".");
-      delay(500);
-    }
-  }
-
-  void setTimezone(String timezone) {
-    Serial.printf("  Setting Timezone to %s\n", timezone.c_str());
-    setenv("TZ", timezone.c_str(), 1);
-    tzset();
-  }
-
-  void initTime(String timezone) {
-    struct tm timeinfo;
-    Serial.println("Setting up time");
-    configTime(0, 0, "pool.ntp.org");
-    if (!getLocalTime(&timeinfo)) {
-      Serial.println(" Failed to obtain time");
-      return;
-    }
-    Serial.println("Got the time from NTP");
-    setTimezone(timezone);
   }
 
   void initMicroSDCard() {
@@ -149,8 +124,6 @@ public:
     WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
     Serial.begin(115200);
     delay(2000);
-    initWiFi();
-    initTime(myTimezone);
     Serial.print("Initializing the camera module...");
     configInitCamera();
     Serial.println("Ok!");
@@ -158,6 +131,43 @@ public:
     initMicroSDCard();
   }
 
+  // Connects to the WiFi
+  void initWiFi() {
+    WiFi.begin(ssid, password);
+
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(500);
+      Serial.println("Connecting to the WiFi...");
+    }
+
+    Serial.print("Connected to WiFi\nIP address: ");
+    Serial.println(WiFi.localIP());
+
+    initTime(myTimezone);
+  }
+
+  // Gets the timezone from the internet
+  void setTimezone(String timezone) {
+    Serial.printf("  Setting Timezone to %s\n", timezone.c_str());
+    setenv("TZ", timezone.c_str(), 1);
+    tzset();
+  }
+
+  // Sets the time based on the timezone
+  void initTime(String timezone) {
+    struct tm timeinfo;
+    Serial.println("Setting up time");
+    configTime(0, 0, "pool.ntp.org");
+    if (!getLocalTime(&timeinfo)) {
+      Serial.println(" Failed to obtain time");
+      return;
+    }
+    setTimezone(timezone);
+    Serial.println("Got the time from NTP");
+    Serial.println(timezone);
+  }
+
+  // Caotures and saves the photo to the SD card
   void captureAndSavePhoto() {
     camera_fb_t *fb = esp_camera_fb_get();
 
@@ -183,13 +193,17 @@ public:
   }
 };
 
-CameraSystem cameraSystem("IKEA-FREE", "pdzl7885", "CST6CDT,M3.2.0,M11.1.0", 32,
-                          -1, 0, 26, 27, 35, 34, 39, 36, 21, 19, 18, 5, 25, 23,
-                          22);
+CameraSystem cameraSystem("IKEA-FREE", "pdzl7885",
+                          "EET-2EEST,M3.5.0/3,M10.5.0/4", 32, -1, 0, 26, 27, 35,
+                          34, 39, 36, 21, 19, 18, 5, 25, 23, 22);
 
 void setup() { cameraSystem.setup(); }
 
 void loop() {
-  cameraSystem.captureAndSavePhoto();
-  delay(10000);
+  if (WiFi.status() != WL_CONNECTED) {
+    cameraSystem.initWiFi();
+  } else {
+    cameraSystem.captureAndSavePhoto();
+    delay(10000);
+  }
 }
