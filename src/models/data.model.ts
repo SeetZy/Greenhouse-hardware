@@ -4,30 +4,31 @@
  * * Library imports
  */
 // ? https://www.npmjs.com/package/mongoose
-import mongoose, { Document } from 'mongoose'
+import mongoose, { Schema, Document } from 'mongoose'
 
-// Defines the schema object from mongoose
-const Schema = mongoose.Schema
-
-export interface GreenhouseDocument extends Document {
-  _id?: any
-  soilHum?: number
-  tempC?: number
+interface IPhoto {
+  data: Buffer
+  contentType: string
 }
 
-// Defines the user schema
-const greenhouseSchema = new Schema({
-  soilHum: {
-    type: Number,
-    require: true,
-  },
-  tempC: {
-    type: Number,
-    require: true,
+interface IGreenhouse extends Document {
+  soilHum: number
+  tempC: number
+  photo: IPhoto
+}
+
+const GreenhouseSchema: Schema<IGreenhouse> = new Schema({
+  soilHum: { type: Number, required: false },
+  tempC: { type: Number, required: false },
+  photo: {
+    data: { type: Buffer, required: false },
+    contentType: { type: String, required: false },
   },
 })
 
-export const GreenhouseModel = mongoose.model(
-  'greenhouse-info',
-  greenhouseSchema
+const GreenhouseModel = mongoose.model<IGreenhouse>(
+  'Greenhouse',
+  GreenhouseSchema
 )
+
+export { GreenhouseModel, IGreenhouse }
