@@ -110,27 +110,34 @@ private:
       return;
     }
 
-    // Read file content into a buffer
-    size_t fileSize = file.size();
-    uint8_t *fileBuffer = (uint8_t *)malloc(fileSize);
-    if (!fileBuffer) {
-      Serial.println("Failed to allocate memory for file buffer");
-      file.close();
-      return;
-    }
-    file.read(fileBuffer, fileSize);
-    file.close();
-
     // Set up the HTTP client
     HTTPClient http;
-    http.begin(
-        "http://your_server/upload"); // Replace with your server endpoint
+    http.begin("http://localhost:3000/post-greenhouse-info");
 
-    // Specify content type
-    http.addHeader("Content-Type", "image/jpeg");
+    // Specify content type with boundary
+    String contentType =
+        "multipart/form-data; "
+        "boundary=--------------------------boundary1234567890123456";
+    http.addHeader("Content-Type", contentType);
 
-    // Send the POST request with the file data
-    int httpResponseCode = http.POST(fileBuffer, fileSize);
+    // Start constructing the request body
+    String boundary = "--------------------------boundary1234567890123456";
+    String requestBody = "--" + boundary + "\r\n";
+    requestBody +=
+        "Content-Disposition: form-data; name=\"photo\"; filename=\"" +
+        filename + "\"\r\n";
+    requestBody += "Content-Type: image/jpeg\r\n\r\n";
+
+    // Read file content into the request body
+    while (file.available()) {
+      requestBody += (char)file.read();
+    }
+
+    // End the request body
+    requestBody += "\r\n--" + boundary + "--\r\n";
+
+    // Send the POST request with the manually constructed body
+    int httpResponseCode = http.POST(requestBody);
 
     // Check for success
     if (httpResponseCode > 0) {
@@ -142,7 +149,7 @@ private:
 
     // Clean up
     http.end();
-    free(fileBuffer);
+    file.close();
   }
 
 public:
