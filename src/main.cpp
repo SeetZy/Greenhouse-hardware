@@ -103,55 +103,6 @@ private:
     return filename;
   }
 
-  void uploadPhotoToServer(fs::FS &fs, String filename) {
-    File file = fs.open(filename.c_str(), FILE_READ);
-    if (!file) {
-      Serial.printf("Failed to open file in reading mode");
-      return;
-    }
-
-    // Set up the HTTP client
-    HTTPClient http;
-    http.begin("http://localhost:3000/post-greenhouse-info");
-
-    // Specify content type with boundary
-    String contentType =
-        "multipart/form-data; "
-        "boundary=--------------------------boundary1234567890123456";
-    http.addHeader("Content-Type", contentType);
-
-    // Start constructing the request body
-    String boundary = "--------------------------boundary1234567890123456";
-    String requestBody = "--" + boundary + "\r\n";
-    requestBody +=
-        "Content-Disposition: form-data; name=\"photo\"; filename=\"" +
-        filename + "\"\r\n";
-    requestBody += "Content-Type: image/jpeg\r\n\r\n";
-
-    // Read file content into the request body
-    while (file.available()) {
-      requestBody += (char)file.read();
-    }
-
-    // End the request body
-    requestBody += "\r\n--" + boundary + "--\r\n";
-
-    // Send the POST request with the manually constructed body
-    int httpResponseCode = http.POST(requestBody);
-
-    // Check for success
-    if (httpResponseCode > 0) {
-      Serial.printf("HTTP Response code: %d\n", httpResponseCode);
-    } else {
-      Serial.printf("HTTP Request failed: %s\n",
-                    http.errorToString(httpResponseCode).c_str());
-    }
-
-    // Clean up
-    http.end();
-    file.close();
-  }
-
 public:
   CameraSystem(const char *ssid, const char *password, String myTimezone,
                int PWDN_GPIO_NUM, int RESET_GPIO_NUM, int XCLK_GPIO_NUM,
@@ -227,6 +178,17 @@ public:
       ESP.restart();
     }
 
+    // Create a buffer to hold the JPEG photo
+    uint8_t *jpegBuffer = (uint8_t *)malloc(fb->len);
+    if (!jpegBuffer) {
+      Serial.println("Failed to allocate memory for the JPEG buffer");
+      esp_camera_fb_return(fb);
+      return;
+    }
+
+    // Copy the photo data to the buffer
+    memcpy(jpegBuffer, fb->buf, fb->len);
+
     String path = getPictureFilename();
     Serial.printf("Picture file name: %s\n", path.c_str());
 
@@ -235,12 +197,12 @@ public:
     if (!file) {
       Serial.printf("Failed to open file in writing mode");
     } else {
-      file.write(fb->buf, fb->len);
+      file.write(jpegBuffer, fb->len);
       Serial.printf("Saved: %s\n", path.c_str());
       file.close();
-      uploadPhotoToServer(fs, path); // Upload the photo to the server
     }
 
+    free(jpegBuffer);
     esp_camera_fb_return(fb);
   }
 };
