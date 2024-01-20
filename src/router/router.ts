@@ -18,6 +18,8 @@ router.get('/', (req, res) => {
   res.send('This is not meant to be viewed')
 })
 
+router.post('/post-greenhouse-info', greenhouseDbFunc.addData)
+
 router.post(
   '/post-greenhouse-photo',
   upload.single('image'),
