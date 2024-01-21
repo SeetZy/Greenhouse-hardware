@@ -13,23 +13,29 @@
 #define TEMP_PIN 4
 #define SOIL_PIN 35
 
-// WiFi credentials
+// Relay Pins
+#define RELAY1 15 // Fan
+#define RELAY2 5  // Heater
+#define RELAY3 18 // Water pump
+#define RELAY4 19 // Lights
+
+// WiFi Credentials
 const char *ssid = "IKEA-FREE";
 const char *password = "pdzl7885";
 
-// Post method URL
-const char *post_url = "http://localhost:3000/post-greenhouse-info";
+// Post Method URL
+const char *post_url = "https://greenhouse-hardware-e6811b87b8a0.herokuapp.com/"
+                       "post-greenhouse-info";
 
 struct {
   float tempC = 0;
   int soilHum = 0;
-  int airHum = 0;
+  String time = "20/01/2024 14:15";
 } monVar;
 
-class EnvironmentMonitor {
+class GreenhouseMonitor {
 public:
-  EnvironmentMonitor()
-      // SCL 22; SDA 21
+  GreenhouseMonitor()
       : lcd(0x27, 16, 2), oneWire(TEMP_PIN), DS18B20(&oneWire) {}
 
   void begin() {
@@ -38,27 +44,52 @@ public:
     lcd.init();
     lcd.clear();
     pinMode(BUILTIN_LED, OUTPUT);
+    pinMode(RELAY1, OUTPUT);
+    pinMode(RELAY2, OUTPUT);
+    pinMode(RELAY3, OUTPUT);
+    pinMode(RELAY4, OUTPUT);
+
+    digitalWrite(RELAY4, HIGH);
+    checkTemp();
+    checkSoilLevels();
+    showLcd();
   }
 
   // Connects to the WiFi
   void connectWiFi() {
-    WiFi.begin(ssid, password);
 
-    while (WiFi.status() != WL_CONNECTED) {
+    int attempts = 0;
+
+    while (WiFi.status() != WL_CONNECTED && attempts < 15) {
+      WiFi.begin(ssid, password);
       delay(500);
-      Serial.println("Connecting to the WiFi...");
+
+      Serial.print("Connecting to the WiFi... Attempt ");
+      Serial.println(attempts + 1);
+
+      attempts++;
     }
 
-    Serial.print("Connected to WiFi\nIP address: ");
-    Serial.println(WiFi.localIP());
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.print("Connected to WiFi\nIP address: ");
+      Serial.println(WiFi.localIP());
+    } else {
+      Serial.println("Failed to connect to WiFi");
+    }
   }
+
+  void initTime() {}
 
   // Sends data to cloud server
   void sendData() {
+    connectWiFi();
+    initTime();
+
     StaticJsonDocument<200> jsonDocument;
 
     jsonDocument["tempC"] = monVar.tempC;
     jsonDocument["soilHum"] = monVar.soilHum;
+    jsonDocument["time"] = monVar.time;
 
     String jsonData;
     serializeJson(jsonDocument, jsonData);
@@ -81,19 +112,6 @@ public:
 
     http.end();
   }
-
-private:
-  LiquidCrystal_I2C lcd;
-  OneWire oneWire;
-  DallasTemperature DS18B20;
-  HTTPClient http;
-  WiFiClient client;
-};
-
-class SensorMonitor {
-public:
-  SensorMonitor() : lcd(0x27, 16, 2), oneWire(TEMP_PIN), DS18B20(&oneWire) {}
-
   void checkTemp() {
     DS18B20.requestTemperatures();
     monVar.tempC = DS18B20.getTempCByIndex(0);
@@ -120,31 +138,64 @@ public:
     lcd.setCursor(1, 0);
     lcd.print("Temp: " + String(monVar.tempC) + (char)223 + "C");
     lcd.setCursor(2, 1);
-    lcd.print("  Hum: " + String(monVar.soilHum) + "%");
+    lcd.print("  Hum: " + String(monVar.soilHum));
+  }
+
+  void fanControl() {}
+
+  void heaterControl() {}
+
+  void waterPumpControl() {}
+
+  void lightControl() {
+    unsigned long currentMillis = millis();
+    unsigned long lastToggleTime;
+
+    // Toggle RELAY4 every 16 hours
+    if (currentMillis - lastToggleTime >= TOGGLE_INTERVAL) {
+      lastToggleTime = currentMillis;
+
+      // Toggle RELAY4 state
+      digitalWrite(RELAY4, !digitalRead(RELAY4));
+    }
+  }
+
+  void update() {
+    unsigned long currentMillis = millis();
+    unsigned long lastUpdateTime;
+
+    if (currentMillis - lastUpdateTime >= UPDATE_INTERVAL) {
+      lastUpdateTime = currentMillis;
+
+      checkTemp();
+      checkSoilLevels();
+      showLcd();
+      sendData();
+    }
   }
 
 private:
   LiquidCrystal_I2C lcd;
   OneWire oneWire;
   DallasTemperature DS18B20;
+  HTTPClient http;
+  WiFiClient client;
+  static const unsigned long UPDATE_INTERVAL = 60000;
+  static const unsigned long TOGGLE_INTERVAL = 16 * 60 * 60 * 1000;
 };
 
-EnvironmentMonitor environmentMonitor;
-SensorMonitor sensorMonitor;
+GreenhouseMonitor greenhouseMonitor;
 
-void setup() { environmentMonitor.begin(); }
+void setup() { greenhouseMonitor.begin(); }
 
 void loop() {
-  if (WiFi.status() != WL_CONNECTED) {
-    environmentMonitor.connectWiFi();
-  } else {
-    digitalWrite(BUILTIN_LED, HIGH);
-    delay(1000);
-    sensorMonitor.checkTemp();
-    sensorMonitor.checkSoilLevels();
-    sensorMonitor.showLcd();
-    environmentMonitor.sendData();
-    digitalWrite(BUILTIN_LED, LOW);
-    delay(1000);
-  }
+  // Indicates that there is function
+  digitalWrite(BUILTIN_LED, HIGH);
+
+  greenhouseMonitor.update();
+  greenhouseMonitor.lightControl();
+
+  // Indicates that there is function
+  digitalWrite(BUILTIN_LED, LOW);
+  delay(1000);
 }
