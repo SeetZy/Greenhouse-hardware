@@ -1,6 +1,3 @@
-/**
- * * Library imports
- */
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <DallasTemperature.h>
@@ -9,21 +6,17 @@
 #include <OneWire.h>
 #include <WiFi.h>
 
-// Sensor Pins
 #define TEMP_PIN 4
 #define SOIL_PIN 35
 #define LIGHT_PIN 19
 
-// Relay Pins
 #define RELAY1 15 // Fan
 #define RELAY2 18 // Water pump
 #define RELAY3 5  // Heater
 
-// WiFi Credentials
 const char *ssid = "IKEA-FREE";
 const char *password = "pdzl7885";
 
-// Post Method URL
 const char *post_url = "https://greenhouse-hardware-e6811b87b8a0.herokuapp.com/"
                        "post-greenhouse-info";
 
@@ -51,9 +44,7 @@ public:
     digitalWrite(LIGHT_PIN, HIGH);
   }
 
-  // Connects to the WiFi
   void connectWiFi() {
-
     int attempts = 0;
 
     while (WiFi.status() != WL_CONNECTED && attempts < 15) {
@@ -74,22 +65,23 @@ public:
     }
   }
 
-  // Sends data to cloud server
   void sendData() {
     connectWiFi();
 
-    StaticJsonDocument<200> jsonDocument;
+    // Create a JSON object
+    DynamicJsonDocument jsonDoc(256);
+    jsonDoc["soilHum"] = monVar.soilHum;
+    jsonDoc["tempC"] = monVar.tempC;
 
-    jsonDocument["tempC"] = monVar.tempC;
-    jsonDocument["soilHum"] = monVar.soilHum;
-
+    // Serialize JSON to a string
     String jsonData;
-    serializeJson(jsonDocument, jsonData);
+    serializeJson(jsonDoc, jsonData);
 
+    // Initialize HTTP client
     http.begin(post_url);
-
     http.addHeader("Content-Type", "application/json");
 
+    // Send HTTP POST request with serialized JSON data
     int httpResponseCode = http.POST(jsonData);
 
     if (httpResponseCode > 0) {
@@ -102,11 +94,14 @@ public:
       Serial.println(httpResponseCode);
     }
 
+    // End the HTTP client
     http.end();
   }
+
   void checkTemp() {
     DS18B20.requestTemperatures();
     monVar.tempC = DS18B20.getTempCByIndex(0);
+    monVar.tempC = ceil(monVar.tempC);
 
     Serial.print("Temperature: ");
     Serial.print(monVar.tempC);
@@ -118,7 +113,7 @@ public:
 
     if (monVar.soilHum < 1000) {
       Serial.print("Soil is Dry: ");
-    } else if (monVar.soilHum > 1000) {
+    } else {
       Serial.print("Soil is Wet: ");
     }
 
@@ -133,31 +128,15 @@ public:
     lcd.print("  Hum: " + String(monVar.soilHum));
   }
 
-  void fanControl() {
-    if (monVar.tempC >= 24) {
-      digitalWrite(RELAY1, LOW);
-    } else if (monVar.tempC <= 24) {
-      digitalWrite(RELAY1, HIGH);
-    }
-  }
+  void fanControl() { digitalWrite(RELAY1, (monVar.tempC >= 24) ? LOW : HIGH); }
 
   void heaterControl() {
-    if (monVar.tempC <= 24) {
-      digitalWrite(RELAY3, LOW);
-    } else if (monVar.tempC >= 24) {
-      digitalWrite(RELAY3, LOW);
-    }
+    digitalWrite(RELAY3, (monVar.tempC <= 24) ? LOW : HIGH);
   }
 
   void waterPumpControl() {
-    if (monVar.soilHum) {
-      digitalWrite(RELAY2, LOW);
-    } else if (monVar.soilHum) {
-      digitalWrite(RELAY2, HIGH);
-    }
+    digitalWrite(RELAY2, (monVar.soilHum < 1000) ? LOW : HIGH);
   }
-
-  void lightControl() {}
 
   void update() {
     checkTemp();
@@ -165,6 +144,7 @@ public:
     showLcd();
     fanControl();
     heaterControl();
+    waterPumpControl();
   }
 
 private:
@@ -173,8 +153,6 @@ private:
   DallasTemperature DS18B20;
   HTTPClient http;
   WiFiClient client;
-  static const unsigned long UPDATE_INTERVAL = 60000;
-  static const unsigned long TOGGLE_INTERVAL = 16 * 60 * 60 * 1000;
 };
 
 GreenhouseMonitor greenhouseMonitor;
@@ -182,7 +160,6 @@ GreenhouseMonitor greenhouseMonitor;
 void setup() { greenhouseMonitor.begin(); }
 
 void loop() {
-  // Indicates that there is function
   digitalWrite(BUILTIN_LED, HIGH);
 
   greenhouseMonitor.update();
@@ -193,7 +170,6 @@ void loop() {
     lastSendDataTime = millis();
   }
 
-  // Indicates that there is function
   digitalWrite(BUILTIN_LED, LOW);
   delay(1000);
 }
