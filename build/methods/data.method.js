@@ -11,10 +11,10 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.greenhouseDbFunc = void 0;
-// Model imports
+// Data model import
 const data_model_1 = require("../models/data.model");
-const photo_model_1 = require("../models/photo.model");
 class GreenhouseService {
+    // Signs up a new greenhouse in the database
     static createGreenhouseInfo(soilHum, tempC, time) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
@@ -33,43 +33,12 @@ class GreenhouseService {
             }
         });
     }
-    static createGreenhousePhoto(image) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const createNewGreenhouse = new photo_model_1.GreenhousePhotoModel({
-                    image,
-                });
-                const savedData = yield createNewGreenhouse.save();
-                console.log('Data saved successfully:', savedData);
-                return savedData;
-            }
-            catch (error) {
-                console.error('Failed to save data:', error);
-                throw new Error(`Failed to register: ${error.message}`);
-            }
-        });
-    }
     static getAllData(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const greenhousePhotos = yield data_model_1.GreenhouseDataModel.find();
-                console.log('All data:', greenhousePhotos);
-                return res.json(greenhousePhotos);
-            }
-            catch (error) {
-                console.error(error);
-                return res
-                    .status(500)
-                    .json({ status: false, error: 'Failed to fetch the data' });
-            }
-        });
-    }
-    static getAllPhotos(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const greenhousePhotos = yield photo_model_1.GreenhousePhotoModel.find();
-                console.log('All data:', greenhousePhotos);
-                return res.json(greenhousePhotos);
+                const greenhouseData = yield data_model_1.GreenhouseDataModel.find();
+                console.log('All data:', greenhouseData);
+                return res.json(greenhouseData);
             }
             catch (error) {
                 console.error(error);
@@ -113,45 +82,10 @@ exports.greenhouseDbFunc = {
                 .json({ status: false, error: 'Failed to register the data' });
         }
     }),
-    // Photo registration method
-    addPhoto: (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-        var _a;
-        try {
-            const imageData = (_a = req.file) === null || _a === void 0 ? void 0 : _a.buffer;
-            if (imageData === undefined) {
-                return res.status(400).json({
-                    status: false,
-                    error: 'Please provide an image file',
-                });
-            }
-            else {
-                yield GreenhouseService.createGreenhousePhoto(imageData);
-                return res.json({ status: true, success: 'Data registered' });
-            }
-        }
-        catch (error) {
-            console.error(error);
-            return res
-                .status(500)
-                .json({ status: false, error: 'Failed to register the data' });
-        }
-    }),
     // Data fetching method
     getData: (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         try {
             yield GreenhouseService.getAllData(req, res);
-        }
-        catch (error) {
-            console.error(error);
-            return res
-                .status(500)
-                .json({ status: false, error: 'Failed to fetch the data' });
-        }
-    }),
-    // Photo fetching method
-    getPhotos: (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-        try {
-            yield GreenhouseService.getAllPhotos(req, res);
         }
         catch (error) {
             console.error(error);
