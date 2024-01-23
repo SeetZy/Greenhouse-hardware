@@ -78,15 +78,30 @@ export const greenhouseDbFunc = {
   // Data registration method
   addData: async (req: Request, res: Response) => {
     try {
-      const { soilHum, tempC, time } = req.body
+      const { soilHum, tempC } = req.body
 
-      if (!soilHum || !tempC || !time) {
+      if (!soilHum || !tempC) {
         return res.status(400).json({
           status: false,
           error: 'Please fill all the fields',
         })
       } else {
-        await GreenhouseService.createGreenhouseInfo(soilHum, tempC, time)
+        // Get the current time in the desired format (dd/mm/yyyy hh:mm)
+        const currentTime = new Date()
+          .toLocaleString('en-GB', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+          .replace(/,/g, '') // Remove commas
+
+        await GreenhouseService.createGreenhouseInfo(
+          soilHum,
+          tempC,
+          currentTime
+        )
         return res.json({ status: true, success: 'Data registered' })
       }
     } catch (error) {

@@ -10,15 +10,16 @@ exports.router = void 0;
  */
 // ? https://www.npmjs.com/package/express
 const express_1 = __importDefault(require("express"));
-// Defining a router
-exports.router = express_1.default.Router();
-// Gets all the methods
+// ? https://www.npmjs.com/package/multer
+const multer_1 = __importDefault(require("multer"));
 const data_method_1 = require("../methods/data.method");
-// Default Route
+exports.router = express_1.default.Router();
+// Initialize multer
+const upload = (0, multer_1.default)();
 exports.router.get('/', (req, res) => {
     res.send('This is not meant to be viewed');
 });
-// Route to add greenhouse info
 exports.router.post('/post-greenhouse-info', data_method_1.greenhouseDbFunc.addData);
-// Route to get greenhouse info
+exports.router.post('/post-greenhouse-photo', upload.single('image'), data_method_1.greenhouseDbFunc.addPhoto);
 exports.router.get('/get-greenhouse-info', data_method_1.greenhouseDbFunc.getData);
+exports.router.get('/get-greenhouse-photo', data_method_1.greenhouseDbFunc.getPhotos);

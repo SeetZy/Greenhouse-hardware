@@ -4,7 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.GreenhouseDataModel = void 0;
+exports.GreenhousePhotoModel = void 0;
 /**
  * * Library imports
  */
@@ -12,17 +12,9 @@ exports.GreenhouseDataModel = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
 const Schema = mongoose_1.default.Schema;
 const greenhouseSchema = new Schema({
-    soilHum: {
-        type: Number,
-        required: true,
-    },
-    tempC: {
-        type: Number,
-        required: true,
-    },
-    time: {
-        type: String,
+    image: {
+        type: Buffer,
         required: true,
     },
 });
-exports.GreenhouseDataModel = mongoose_1.default.model('greenhouse-info', greenhouseSchema);
+exports.GreenhousePhotoModel = mongoose_1.default.model('greenhouse-photos', greenhouseSchema);
