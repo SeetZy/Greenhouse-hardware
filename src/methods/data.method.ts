@@ -51,6 +51,7 @@ export const greenhouseDbFunc = {
   addData: async (req: Request, res: Response) => {
     try {
       const { soilHum, tempC } = req.body
+      console.log('Received body:', req.body)
 
       if (!soilHum || !tempC) {
         return res.status(400).json({

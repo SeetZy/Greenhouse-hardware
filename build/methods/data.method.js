@@ -54,6 +54,7 @@ exports.greenhouseDbFunc = {
     addData: (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         try {
             const { soilHum, tempC } = req.body;
+            console.log('Received body:', req.body);
             if (!soilHum || !tempC) {
                 return res.status(400).json({
                     status: false,
