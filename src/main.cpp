@@ -12,12 +12,12 @@
 // Sensor Pins
 #define TEMP_PIN 4
 #define SOIL_PIN 35
+#define LIGHT_PIN 19
 
 // Relay Pins
 #define RELAY1 15 // Fan
-#define RELAY2 5  // Heater
-#define RELAY3 18 // Water pump
-#define RELAY4 19 // Lights
+#define RELAY2 18 // Water pump
+#define RELAY3 5  // Heater
 
 // WiFi Credentials
 const char *ssid = "IKEA-FREE";
@@ -30,7 +30,6 @@ const char *post_url = "https://greenhouse-hardware-e6811b87b8a0.herokuapp.com/"
 struct {
   float tempC = 0;
   int soilHum = 0;
-  String time = "20/01/2024 14:15";
 } monVar;
 
 class GreenhouseMonitor {
@@ -47,12 +46,9 @@ public:
     pinMode(RELAY1, OUTPUT);
     pinMode(RELAY2, OUTPUT);
     pinMode(RELAY3, OUTPUT);
-    pinMode(RELAY4, OUTPUT);
+    pinMode(LIGHT_PIN, OUTPUT);
 
-    digitalWrite(RELAY4, HIGH);
-    checkTemp();
-    checkSoilLevels();
-    showLcd();
+    digitalWrite(LIGHT_PIN, HIGH);
   }
 
   // Connects to the WiFi
@@ -78,18 +74,14 @@ public:
     }
   }
 
-  void initTime() {}
-
   // Sends data to cloud server
   void sendData() {
     connectWiFi();
-    initTime();
 
     StaticJsonDocument<200> jsonDocument;
 
     jsonDocument["tempC"] = monVar.tempC;
     jsonDocument["soilHum"] = monVar.soilHum;
-    jsonDocument["time"] = monVar.time;
 
     String jsonData;
     serializeJson(jsonDocument, jsonData);
@@ -141,37 +133,38 @@ public:
     lcd.print("  Hum: " + String(monVar.soilHum));
   }
 
-  void fanControl() {}
-
-  void heaterControl() {}
-
-  void waterPumpControl() {}
-
-  void lightControl() {
-    unsigned long currentMillis = millis();
-    unsigned long lastToggleTime;
-
-    // Toggle RELAY4 every 16 hours
-    if (currentMillis - lastToggleTime >= TOGGLE_INTERVAL) {
-      lastToggleTime = currentMillis;
-
-      // Toggle RELAY4 state
-      digitalWrite(RELAY4, !digitalRead(RELAY4));
+  void fanControl() {
+    if (monVar.tempC >= 24) {
+      digitalWrite(RELAY1, LOW);
+    } else if (monVar.tempC <= 24) {
+      digitalWrite(RELAY1, HIGH);
     }
   }
 
-  void update() {
-    unsigned long currentMillis = millis();
-    unsigned long lastUpdateTime;
-
-    if (currentMillis - lastUpdateTime >= UPDATE_INTERVAL) {
-      lastUpdateTime = currentMillis;
-
-      checkTemp();
-      checkSoilLevels();
-      showLcd();
-      sendData();
+  void heaterControl() {
+    if (monVar.tempC <= 24) {
+      digitalWrite(RELAY3, LOW);
+    } else if (monVar.tempC >= 24) {
+      digitalWrite(RELAY3, LOW);
     }
+  }
+
+  void waterPumpControl() {
+    if (monVar.soilHum) {
+      digitalWrite(RELAY2, LOW);
+    } else if (monVar.soilHum) {
+      digitalWrite(RELAY2, HIGH);
+    }
+  }
+
+  void lightControl() {}
+
+  void update() {
+    checkTemp();
+    checkSoilLevels();
+    showLcd();
+    fanControl();
+    heaterControl();
   }
 
 private:
@@ -193,7 +186,12 @@ void loop() {
   digitalWrite(BUILTIN_LED, HIGH);
 
   greenhouseMonitor.update();
-  greenhouseMonitor.lightControl();
+
+  static unsigned long lastSendDataTime = 0;
+  if (millis() - lastSendDataTime >= 30000) {
+    greenhouseMonitor.sendData();
+    lastSendDataTime = millis();
+  }
 
   // Indicates that there is function
   digitalWrite(BUILTIN_LED, LOW);
