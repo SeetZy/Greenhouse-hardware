@@ -23,6 +23,7 @@ const char *post_url = "https://greenhouse-hardware-e6811b87b8a0.herokuapp.com/"
 struct {
   float tempC = 0;
   int soilHum = 0;
+  int airHum = 0;
 } monVar;
 
 class GreenhouseMonitor {
@@ -42,6 +43,8 @@ public:
     pinMode(LIGHT_PIN, OUTPUT);
 
     digitalWrite(LIGHT_PIN, HIGH);
+
+    connectWiFi();
   }
 
   void connectWiFi() {
@@ -66,22 +69,18 @@ public:
   }
 
   void sendData() {
-    connectWiFi();
+    StaticJsonDocument<200> jsonDocument;
 
-    // Create a JSON object
-    DynamicJsonDocument jsonDoc(256);
-    jsonDoc["soilHum"] = monVar.soilHum;
-    jsonDoc["tempC"] = monVar.tempC;
+    jsonDocument["tempC"] = ceil(monVar.tempC);
+    jsonDocument["soilHum"] = monVar.soilHum;
 
-    // Serialize JSON to a string
     String jsonData;
-    serializeJson(jsonDoc, jsonData);
+    serializeJson(jsonDocument, jsonData);
 
-    // Initialize HTTP client
     http.begin(post_url);
+
     http.addHeader("Content-Type", "application/json");
 
-    // Send HTTP POST request with serialized JSON data
     int httpResponseCode = http.POST(jsonData);
 
     if (httpResponseCode > 0) {
@@ -94,14 +93,12 @@ public:
       Serial.println(httpResponseCode);
     }
 
-    // End the HTTP client
     http.end();
   }
 
   void checkTemp() {
     DS18B20.requestTemperatures();
     monVar.tempC = DS18B20.getTempCByIndex(0);
-    monVar.tempC = ceil(monVar.tempC);
 
     Serial.print("Temperature: ");
     Serial.print(monVar.tempC);
@@ -131,11 +128,28 @@ public:
   void fanControl() { digitalWrite(RELAY1, (monVar.tempC >= 24) ? LOW : HIGH); }
 
   void heaterControl() {
-    digitalWrite(RELAY3, (monVar.tempC <= 24) ? LOW : HIGH);
+    if (monVar.tempC <= 24) {
+      digitalWrite(RELAY3, LOW);
+    } else if (monVar.tempC >= 24) {
+      digitalWrite(RELAY3, HIGH);
+    }
   }
 
   void waterPumpControl() {
-    digitalWrite(RELAY2, (monVar.soilHum < 1000) ? LOW : HIGH);
+    if (monVar.soilHum <= 1000) {
+      digitalWrite(RELAY2, HIGH);
+    } else if (monVar.soilHum >= 1000) {
+      digitalWrite(RELAY2, LOW);
+    }
+  }
+
+  void toggleLights() {
+    static unsigned long lastToggleTime = 0;
+    if (millis() - lastToggleTime >= 43200000) {
+      digitalWrite(LIGHT_PIN, !digitalRead(LIGHT_PIN));
+      Serial.println("Light toggle");
+      lastToggleTime = millis();
+    }
   }
 
   void update() {
@@ -160,16 +174,20 @@ GreenhouseMonitor greenhouseMonitor;
 void setup() { greenhouseMonitor.begin(); }
 
 void loop() {
-  digitalWrite(BUILTIN_LED, HIGH);
-
-  greenhouseMonitor.update();
-
-  static unsigned long lastSendDataTime = 0;
-  if (millis() - lastSendDataTime >= 30000) {
-    greenhouseMonitor.sendData();
-    lastSendDataTime = millis();
+  if (WiFi.status() != WL_CONNECTED) {
+    greenhouseMonitor.connectWiFi();
+    greenhouseMonitor.update();
+  } else {
+    digitalWrite(BUILTIN_LED, HIGH);
+    delay(1000);
+    greenhouseMonitor.update();
+    static unsigned long lastSendDataTime = 0;
+    if (millis() - lastSendDataTime >= 60000) {
+      greenhouseMonitor.sendData();
+      lastSendDataTime = millis();
+    }
+    greenhouseMonitor.toggleLights();
+    digitalWrite(BUILTIN_LED, LOW);
+    delay(1000);
   }
-
-  digitalWrite(BUILTIN_LED, LOW);
-  delay(1000);
 }
